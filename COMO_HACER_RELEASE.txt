@@ -1,0 +1,150 @@
+=====================================================================
+ CÓMO GENERAR LA APP EN MODO RELEASE  (Android)
+ Entrega de Turno · TENS
+=====================================================================
+
+QUÉ ES EL MODO RELEASE
+  - Debug   : versión para probar (más lenta y más pesada).
+  - Release : versión final optimizada, para instalar, compartir o subir
+              a Google Play.
+
+
+---------------------------------------------------------------------
+0) REQUISITOS (solo la primera vez)
+---------------------------------------------------------------------
+  1. Flutter instalado.      Comprobar:  flutter --version
+  2. Java 17 y Android SDK.  Comprobar:  flutter doctor -v
+     La línea "Android toolchain" debe aparecer con un ✓.
+  3. Aceptar licencias:      flutter doctor --android-licenses
+
+
+---------------------------------------------------------------------
+1) COMPILAR RÁPIDO (sin firma propia, para compartir el APK)
+---------------------------------------------------------------------
+  Abrir la Terminal en la carpeta del proyecto:
+
+      cd "/Users/TU_USUARIO/Documents/MisProyectos/entrega turno"
+      flutter clean
+      flutter pub get
+      flutter build apk --release
+
+  El archivo queda en:
+
+      build/app/outputs/flutter-apk/app-release.apk
+
+  Instalarlo en un teléfono conectado por USB:
+
+      adb install -r build/app/outputs/flutter-apk/app-release.apk
+
+  También se puede enviar ese .apk por WhatsApp/correo y el teléfono lo
+  instala (hay que permitir "instalar apps de origen desconocido").
+
+  OJO: mientras no se cree la firma propia (paso 2), el APK se firma con
+  la clave de depuración. Sirve para probar y compartir, pero Google Play
+  NO lo acepta.
+
+
+---------------------------------------------------------------------
+2) CREAR LA FIRMA PROPIA (keystore) — solo la primera vez
+---------------------------------------------------------------------
+  2.1 Generar la clave (cambiar los datos por los propios):
+
+      keytool -genkey -v -keystore ~/entrega-turno.jks \
+        -keyalg RSA -keysize 2048 -validity 10000 -alias entrega
+
+      Preguntará una contraseña y algunos datos. ANOTAR la contraseña
+      y el alias: se necesitan para cada actualización.
+
+  2.2 Crear el archivo  android/key.properties  con este contenido:
+
+      storePassword=LA_CONTRASEÑA_QUE_ESCRIBISTE
+      keyPassword=LA_CONTRASEÑA_QUE_ESCRIBISTE
+      keyAlias=entrega
+      storeFile=/Users/TU_USUARIO/entrega-turno.jks
+
+  2.3 Listo. El proyecto ya está preparado: android/app/build.gradle.kts
+      lee ese archivo automáticamente y firma con tu clave. Si el archivo
+      no existe, compila igual usando la clave de depuración.
+
+  IMPORTANTE: no subir key.properties ni el archivo .jks a GitHub
+  (ya están excluidos en .gitignore). Guardar una copia de la clave en un
+  lugar seguro: si se pierde, no se puede actualizar la app en Play.
+
+
+---------------------------------------------------------------------
+3) COMPILAR LA VERSIÓN FINAL (con la firma del paso 2)
+---------------------------------------------------------------------
+  a) APK universal (para instalar en cualquier teléfono):
+
+         flutter build apk --release
+         → build/app/outputs/flutter-apk/app-release.apk
+
+     Pesa más porque incluye todas las arquitecturas.
+
+  b) APK por arquitectura (más livianos, ideales para repartir):
+
+         flutter build apk --release --split-per-abi
+         → app-arm64-v8a-release.apk    (casi todos los teléfonos actuales)
+         → app-armeabi-v7a-release.apk  (teléfonos antiguos de 32 bits)
+
+  c) AAB (el formato que pide Google Play):
+
+         flutter build appbundle --release
+         → build/app/outputs/bundle/release/app-release.aab
+
+  El número de versión se cambia en pubspec.yaml, por ejemplo:
+      version: 1.0.1+2      (1.0.1 = versión visible, 2 = versionCode)
+  Hay que subir el versionCode (+1) en cada envío a Play.
+
+
+---------------------------------------------------------------------
+4) SUBIR A GOOGLE PLAY
+---------------------------------------------------------------------
+  1. Crear la cuenta de desarrollador (pago único de 25 USD):
+     https://play.google.com/console
+  2. "Crear app" → nombre: Entrega de Turno TENS.
+  3. Producción (o Prueba interna) → "Crear nueva versión" → subir el .aab.
+  4. Completar la ficha: descripción, ícono 512x512, capturas de pantalla,
+     política de privacidad (la app no recopila datos: no pide permisos).
+  5. Enviar a revisión.
+  Play exige tener el targetSdk actualizado; este proyecto usa 36 (Android 16).
+
+
+---------------------------------------------------------------------
+5) COMPATIBILIDAD
+---------------------------------------------------------------------
+  - minSdk 24 → Android 7.0 Nougat (2016) o superior. Es el mínimo que
+    soportan Flutter y los plugins usados (shared_preferences, path_provider,
+    share_plus, url_launcher), por lo que ya cubre prácticamente todos los
+    teléfonos en uso.
+  - targetSdk y compileSdk 36 (Android 16): cumple los requisitos de Play.
+  - Arquitecturas incluidas: arm64-v8a, armeabi-v7a y x86_64.
+  - La app NO pide permisos: no usa cámara, ubicación ni almacenamiento
+    externo. La imagen que genera se guarda en su propia carpeta
+    (Android/data/com.entreturno.entrega_turno/files/Download/Entregas de turno).
+  - Probado: APK release ejecutado en Android 7.0 (API 24) y Android 16 (API 36).
+
+
+---------------------------------------------------------------------
+6) PROBLEMAS COMUNES
+---------------------------------------------------------------------
+  - "minSdkVersion 21 cannot be smaller than version 24": no se puede bajar
+    de Android 7.0; lo impone el motor de Flutter y los plugins.
+  - "Java version wrong": flutter config --jdk-dir="/ruta/al/jdk17"
+  - Firma inválida al subir a Play: revisar la ruta absoluta de storeFile
+    y que las contraseñas del key.properties sean correctas.
+  - Errores raros después de cambiar dependencias:
+        flutter clean
+        cd android && ./gradlew clean && cd ..
+        flutter pub get
+  - Ver el reporte de errores del empaquetado:
+        android/app/build/reports/
+
+
+---------------------------------------------------------------------
+7) RESUMEN EN 3 LÍNEAS
+---------------------------------------------------------------------
+  flutter clean && flutter pub get
+  flutter build apk --release            (para instalar/compartir)
+  flutter build appbundle --release      (para Google Play)
+=====================================================================
